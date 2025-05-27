@@ -24,7 +24,6 @@ def encrypt(
 
     iv, encrypted_message = aes.encrypt(plaintext)
     int_aes_key = int.from_bytes(aes_key)
-    print(int_aes_key)
 
     encrypted_aes_key = eg_encrypt(int_aes_key, eg_public_key)
 
@@ -47,7 +46,6 @@ def decrypt(
     
     restored_aes_key = split_c1c2(encrypted_aes_key)
     aes_key_int = eg_decrypt(restored_aes_key, elgamal_private_key, elgamal_public_key)
-    print(aes_key_int)
     aes_key = aes_key_int.to_bytes(length=16)
 
     aes = AES_CBC(aes_key)
@@ -56,7 +54,10 @@ def decrypt(
 
 
 if __name__ == "__main__":
-    eg_public, eg_private = generate_eg_keys(bit_length=16)
+    # eg_public, eg_private = generate_eg_keys(bit_length=16)
+
+    eg_public = (2, 784637716923335095479473677900958302012794430558004314147, 512611549290850354559007451159799160374583379513555087922)
+    eg_private = 740087272825788791299402804606531437541517101921654580582
 
     dsa_p, dsa_q, dsa_g = generate_dsa_parameters()
     dsa_key_pair = generate_dsa_keys(dsa_p, dsa_q, dsa_g)
@@ -69,5 +70,5 @@ if __name__ == "__main__":
     encrypted_result = encrypt(plaintext, aes_key, eg_public, dsa_key_pair)
     decrypted_result = decrypt(encrypted_result, eg_private, eg_public, dsa_key_pair)
 
-    print(plaintext)
-    print(decrypted_result)
+    print("Original message:", plaintext)
+    print("Decrypted message:", decrypted_result)

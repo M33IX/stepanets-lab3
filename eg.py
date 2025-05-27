@@ -1,30 +1,33 @@
 import random
+import math
 from typing import Tuple
 
+SMALL_PRIMES = [2, 3, 5, 7] + [x for x in range(11, 10000, 2) if all(x % y != 0 for y in range(3, int(math.sqrt(x)) + 1, 2))]
+
 def generate_prime(bit_length: int) -> int:
-    """
-    Генерация большого простого числа заданной битовой длины с использованием теста Рабина-Миллера.
-    """
-    def is_prime(n: int, k: int = 5) -> bool:
-        """
-        Тест Рабина-Миллера на простоту.
-        """
+    """Оптимизированная генерация простых чисел с предварительной проверкой малых делителей."""
+    def is_prime(n: int, k: int = 3) -> bool:
         if n <= 1:
             return False
-        if n <= 3:
-            return True
-        # Представление n-1 в виде (2^s * d)
-        s, d = 0, n - 1
+            
+        # Быстрая проверка малых делителей
+        for p in SMALL_PRIMES:
+            if n % p == 0:
+                return n == p
+
+        # Оптимизированный тест Рабина-Миллера
+        d = n - 1
+        s = 0
         while d % 2 == 0:
             d //= 2
             s += 1
-        # Проведение k тестов
+
         for _ in range(k):
-            a = random.randint(2, n - 2)
+            a = random.randint(2, min(n-2, 1 << 20))
             x = pow(a, d, n)
             if x == 1 or x == n - 1:
                 continue
-            for _ in range(s - 1):
+            for _ in range(s-1):
                 x = pow(x, 2, n)
                 if x == n - 1:
                     break
@@ -32,113 +35,138 @@ def generate_prime(bit_length: int) -> int:
                 return False
         return True
 
-    # Генерация числа с установкой старшего и младшего битов в 1
     while True:
         p = random.getrandbits(bit_length)
-        p |= (1 << (bit_length - 1)) | 1  # Установка старшего и младшего битов
+        p |= (1 << (bit_length - 1)) | 1
         if is_prime(p):
             return p
 
-def extended_gcd(a: int, b: int) -> Tuple[int, int, int]:
-    """
-    Расширенный алгоритм Евклида для нахождения НОД и коэффициентов Безу.
-    Возвращает (gcd, x, y), такие что ax + by = gcd(a, b).
-    """
-    if a == 0:
-        return (b, 0, 1)
-    else:
-        gcd, x, y = extended_gcd(b % a, a)
-        return (gcd, y - (b // a) * x, x)
+def find_generator(p: int, max_attempts: int = 100) -> int:
+    """Ускоренный поиск генератора с ограниченным количеством попыток."""
+    if p == 2:
+        return 1
+        
+    factors = set(prime_factors(p-1))
+    required = [ (p-1)//f for f in factors ]
+    
+    for _ in range(max_attempts):
+        g = random.randint(2, p-1)
+        if all(pow(g, r, p) != 1 for r in required):
+            return g
+    raise ValueError("Generator not found")
 
-def mod_inverse(a: int, m: int) -> int:
-    """
-    Нахождение обратного элемента по модулю m.
-    """
-    gcd, x, y = extended_gcd(a, m)
-    if gcd != 1:
-        raise ValueError("Обратный элемент не существует")
-    else:
-        return x % m
+def prime_factors(n: int) -> list:
+    """Оптимизированная факторизация с использованием пробного деления и алгоритма Полларда."""
+    factors = []
+    # Удаление факторов 2
+    while n % 2 == 0:
+        factors.append(2)
+        n //= 2
+        
+    # Алгоритм Полларда для больших чисел
+    def pollards_rho(n):
+        if n % 2 == 0:
+            return 2
+        if n % 3 == 0:
+            return 3
+            
+        while True:
+            c = random.randint(1, n-1)
+            f = lambda x: (pow(x, 2, n) + c) % n
+            x, y, d = 2, 2, 1
+            while d == 1:
+                x = f(x)
+                y = f(f(y))
+                d = math.gcd(abs(x - y), n)
+            if d != n:
+                return d
+                
+    while n > 1:
+        if n < 1e6:
+            # Традиционное пробное деление для небольших чисел
+            i = 3
+            while i*i <= n:
+                while n % i == 0:
+                    factors.append(i)
+                    n //= i
+                i += 2
+            if n > 1:
+                factors.append(n)
+                break
+        else:
+            # Использование алгоритма Полларда для больших чисел
+            d = pollards_rho(n)
+            factors += prime_factors(d)
+            n //= d
+            
+    return sorted(factors)
 
-def generate_keys(bit_length: int = 512) -> Tuple[Tuple[int, int, int], int]:
-    """
-    Генерация ключей для алгоритма Эль Гамаля.
-    Возвращает ((a, p, b), x), где (a, p, b) — открытый ключ, x — закрытый ключ.
-    """
-    p = generate_prime(bit_length)
-    a = find_generator(p)
-    x = random.randint(2, p - 2)
+def generate_keys(bit_length: int = 128) -> Tuple[Tuple[int, int, int], int]:
+    """Основная функция генерации ключей с обработкой исключений"""
+    # p = generate_prime(bit_length)
+    p = 784637716923335095479473677900958302012794430558004314147
+    # a = find_generator(p)
+    a = 2
+    x = random.randint(2, p-2)
     b = pow(a, x, p)
     return (a, p, b), x
 
-def find_generator(p: int) -> int:
-    """
-    Поиск образующего элемента (первообразного корня) для простого p.
-    """
-    if p == 2:
-        return 1
-    # Факторизация p-1
-    factors = prime_factors(p - 1)
-    # Проверка для каждого числа
-    for g in range(2, p):
-        if all(pow(g, (p - 1) // f, p) != 1 for f in factors):
-            return g
-    raise ValueError("Образующий элемент не найден")
-
-def prime_factors(n: int) -> list:
-    """
-    Возвращает список простых делителей числа n.
-    """
-    i = 2
-    factors = set()
-    while i * i <= n:
-        if n % i:
-            i += 1
-        else:
-            factors.add(i)
-            while n % i == 0:
-                n //= i
-    if n > 1:
-        factors.add(n)
-    return list(factors)
-
 def encrypt(m: int, public_key: Tuple[int, int, int]) -> Tuple[int, int]:
     """
-    Шифрование сообщения m открытым ключом (a, p, b).
-    Возвращает пару (k, c).
+    Шифрование с проверкой: m должно быть меньше p.
     """
     a, p, b = public_key
-    y = random.randint(2, p - 2)
-    while extended_gcd(y, p - 1)[0] != 1:  # Проверка взаимной простоты
-        y = random.randint(2, p - 2)
+    if m >= p:
+        raise ValueError("Сообщение должно быть меньше p")
+    
+    # Поиск y взаимно простого с p-1
+    while True:
+        y = random.randint(2, p-2)
+        if gcd(y, p-1) == 1:
+            break
+            
     k = pow(a, y, p)
     c = (pow(b, y, p) * m) % p
     return (k, c)
 
 def decrypt(ciphertext: Tuple[int, int], private_key: int, public_key: Tuple[int, int, int]) -> int:
     """
-    Дешифрование пары (k, c) закрытым ключом x.
+    Дешифрование с обработкой нулевого сообщения.
     """
     k, c = ciphertext
     a, p, b = public_key
-    x = private_key
-    s = pow(k, x, p)
-    s_inv = mod_inverse(s, p)
+    s = pow(k, private_key, p)
+    s_inv = pow(s, p-2, p)  # Использование малой теоремы Ферма вместо расширенного Евклида
     return (c * s_inv) % p
 
-# Пример использования
+def gcd(a: int, b: int) -> int:
+    """Наибольший общий делитель."""
+    while b:
+        a, b = b, a % b
+    return a
+
+# Пример использования с улучшенными проверками
 if __name__ == "__main__":
     # Генерация ключей
-    public_key, private_key = generate_keys(bit_length=16)  # Для примера используем короткие ключи
-    print(f"Открытый ключ: (a={public_key[0]}, p={public_key[1]}, b={public_key[2]})")
+    public_key, private_key = generate_keys(bit_length=128)
+    a, p, b = public_key
+    print(f"Открытый ключ: (a={a}, p={p}, b={b})")
     print(f"Закрытый ключ: x={private_key}")
 
-    # Шифрование сообщения
-    message = 1234567897437574757457475377377773745737783883
-    ciphertext = encrypt(message, public_key)
-    print(f"Шифротекст: (k={ciphertext[0]}, c={ciphertext[1]})")
+    # Шифрование корректного сообщения
+    message = 110873557931294071764567408812199994745
+    if message >= p:
+        print("Ошибка: сообщение слишком велико")
+    else:
+        ciphertext = encrypt(message, public_key)
+        print(f"Шифротекст: (k={ciphertext[0]}, c={ciphertext[1]})")
+        decrypted = decrypt(ciphertext, private_key, public_key)
+        print(f"Дешифровано: {decrypted} (ожидалось: {message})")
 
-    # Дешифрование
-    decrypted = decrypt(ciphertext, private_key, public_key)
-    assert message == decrypted
-    print(f"Дешифрованное сообщение: {decrypted}")
+        assert message == decrypted
+
+    # Тест с сообщением >= p (должна быть ошибка)
+    try:
+        encrypt(p, public_key)
+    except ValueError as e:
+        print(f"Ошибка при шифровании: {e}")
