@@ -1,16 +1,12 @@
 from aes import AES_CBC
 from dsa import generate_dsa_keys, generate_dsa_parameters, sign_message, verify_signature, DSAKeyPair, DSASignature
-from eg import generate_keys as generate_eg_keys, encrypt as eg_encrypt, decrypt as eg_decrypt
+from eg import encrypt as eg_encrypt, decrypt as eg_decrypt
 
 def combine_c1c2(c1: int, c2: int) -> str:
-    """Объединение c1 и c2 в одну строку"""
     return str(f"{c1} {c2}")
 
 def split_c1c2(combined: str) -> tuple[int, int]:
-    """Разделение объединенной строки на c1 и c2"""
     parts = combined.strip().split()
-    if len(parts) != 2:
-        raise ValueError("Ожидалась строка с двумя числами, разделёнными пробелом")
     c1, c2 = map(int, parts)
     return c1, c2
 
@@ -27,11 +23,11 @@ def encrypt(
 
     encrypted_aes_key = eg_encrypt(int_aes_key, eg_public_key)
 
-    combined_public_key = combine_c1c2(*encrypted_aes_key)
+    __encrypted_key = combine_c1c2(*encrypted_aes_key)
 
-    signature = sign_message(combined_public_key, dsa_keypair)
+    signature = sign_message(__encrypted_key, dsa_keypair)
 
-    return (combined_public_key, iv, encrypted_message, signature)
+    return (__encrypted_key, iv, encrypted_message, signature)
 
 def decrypt(
         data: tuple[str, bytes, bytes, DSASignature | None],
@@ -39,14 +35,14 @@ def decrypt(
         elgamal_public_key: tuple[int, int, int],
         dsa_key_pair: DSAKeyPair
     ) -> bytes:
-    encrypted_aes_key, iv, encrypted_message, signature = data
+    __encrypted_aes_key, iv, encrypted_message, signature = data
 
-    if not verify_signature(encrypted_aes_key, signature, dsa_key_pair): #type:ignore
+    if not verify_signature(__encrypted_aes_key, signature, dsa_key_pair): #type:ignore
         raise ValueError("Подпись не верна")
     
-    restored_aes_key = split_c1c2(encrypted_aes_key)
-    aes_key_int = eg_decrypt(restored_aes_key, elgamal_private_key, elgamal_public_key)
-    aes_key = aes_key_int.to_bytes(length=16)
+    __dectypted_aes_key = split_c1c2(__encrypted_aes_key)
+    __int_aes_key = eg_decrypt(__dectypted_aes_key, elgamal_private_key, elgamal_public_key)
+    aes_key = __int_aes_key.to_bytes(length=16)
 
     aes = AES_CBC(aes_key)
 
@@ -54,21 +50,17 @@ def decrypt(
 
 
 if __name__ == "__main__":
-    # eg_public, eg_private = generate_eg_keys(bit_length=16)
-
-    eg_public = (2, 784637716923335095479473677900958302012794430558004314147, 512611549290850354559007451159799160374583379513555087922)
-    eg_private = 740087272825788791299402804606531437541517101921654580582
+    elgamal_public_key = (2, 784637716923335095479473677900958302012794430558004314147, 512611549290850354559007451159799160374583379513555087922)
+    elgamal_private_key = 740087272825788791299402804606531437541517101921654580582
 
     dsa_p, dsa_q, dsa_g = generate_dsa_parameters()
     dsa_key_pair = generate_dsa_keys(dsa_p, dsa_q, dsa_g)
 
-    aes_key = b'Sixteen byte key'
-    plaintext = b'This is a test message'
+    aes_key = b'Test16bytekey123'
+    plaintext = b'SECRET MESSAGE'
 
-    assert int.from_bytes(aes_key).to_bytes(length=16) == aes_key
+    encrypted_result = encrypt(plaintext, aes_key, elgamal_public_key, dsa_key_pair)
+    decrypted_result = decrypt(encrypted_result, elgamal_private_key, elgamal_public_key, dsa_key_pair)
 
-    encrypted_result = encrypt(plaintext, aes_key, eg_public, dsa_key_pair)
-    decrypted_result = decrypt(encrypted_result, eg_private, eg_public, dsa_key_pair)
-
-    print("Original message:", plaintext)
-    print("Decrypted message:", decrypted_result)
+    print("Оригинальное сообщение:", plaintext)
+    print("Расшифрованное сообщение:", decrypted_result)

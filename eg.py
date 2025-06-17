@@ -1,3 +1,4 @@
+from __future__ import annotations
 import random
 import math
 from typing import Tuple
@@ -55,7 +56,7 @@ def find_generator(p: int, max_attempts: int = 100) -> int:
             return g
     raise ValueError("Generator not found")
 
-def prime_factors(n: int) -> list:
+def prime_factors(n: int) -> list[int]:
     """Оптимизированная факторизация с использованием пробного деления и алгоритма Полларда."""
     factors = []
     # Удаление факторов 2
@@ -134,7 +135,7 @@ def decrypt(ciphertext: Tuple[int, int], private_key: int, public_key: Tuple[int
     Дешифрование с обработкой нулевого сообщения.
     """
     k, c = ciphertext
-    a, p, b = public_key
+    _, p, _ = public_key
     s = pow(k, private_key, p)
     s_inv = pow(s, p-2, p)  # Использование малой теоремы Ферма вместо расширенного Евклида
     return (c * s_inv) % p
@@ -153,7 +154,6 @@ if __name__ == "__main__":
     print(f"Открытый ключ: (a={a}, p={p}, b={b})")
     print(f"Закрытый ключ: x={private_key}")
 
-    # Шифрование корректного сообщения
     message = 110873557931294071764567408812199994745
     if message >= p:
         print("Ошибка: сообщение слишком велико")
